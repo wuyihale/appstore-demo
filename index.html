@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联想应用商店 - AI 搜索全功能原型</title>
+    
+    <!-- 1. Tailwind CSS (样式库) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'gradient-x': 'gradient-x 3s ease infinite',
+                        'spin-slow': 'spin 3s linear infinite',
+                    },
+                    keyframes: {
+                        'gradient-x': {
+                            '0%, 100%': { 'background-size': '200% 200%', 'background-position': 'left center' },
+                            '50%': { 'background-size': '200% 200%', 'background-position': 'right center' },
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+
+    <!-- 2. React 核心库 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Babel (让浏览器能运行 JSX) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 4. 图标库 -->
+    <script src="https://unpkg.com/lucide-react@0.460.0/dist/umd/lucide-react.min.js"></script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #d1d5db; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; background-color: #f8f9fa; }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar { -ms-overflow-style: none;  scrollbar-width: none; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { 
+            Search, Download, Star, Menu, Minus, Square, X, Zap, 
+            MessageSquare, LayoutGrid, Gamepad2, Layers, Image: ImageIcon, 
+            Briefcase, MonitorUp, User, Sparkles, ChevronRight, ArrowRight,
+            Lightbulb, Info, Filter, Tag, CheckCircle2, ArrowLeftRight, SlidersHorizontal,
+            AlertCircle, Replace, SearchX, MessageCircleQuestion
+        } = lucide;
+
+        // --- 数据配置 ---
+
+        const EXACT_MATCH_DATA = [
+            { id: 1, name: "微信", badge: "官方正版", desc: "微信，超过10亿人使用，能够通过网络给好友发送文字消息...", rating: "4.8", reviews: "123万+", size: "210.5 MB", downloads: "50亿+", iconColor: "bg-green-500", iconText: "WeChat", tags: ["社交", "通讯"] },
+            { id: 2, name: "企业微信", badge: "", desc: "让每个企业都有自己的微信。与微信一致的沟通体验...", rating: "4.5", reviews: "12万+", size: "180.2 MB", downloads: "1亿+", iconColor: "bg-blue-500", iconText: "Work", tags: ["办公", "协作"] }
+        ];
+
+        const SEMANTIC_MATCH_DATA = [
+            { id: 101, name: "AK加速器 (官方正版)", badge: "EDG代言", desc: "全网首创每天免费14小时，EDG代言，按分钟计费...", rating: "4.1", reviews: "1592", size: "65.49 MB", downloads: "121万", iconColor: "bg-red-600", iconText: "AK", tags: ["免费时长"] },
+            { id: 102, name: "泡泡加速器联想版", badge: "", desc: "steam免费加速器，新用户免费试用，按小时计费...", rating: "4.1", reviews: "2122", size: "62.42 MB", downloads: "18万", iconColor: "bg-cyan-500", iconText: "泡泡", tags: ["Steam"] }
+        ];
+
+        const SUBSTITUTE_MATCH_DATA = [
+            { id: 301, name: "Epic Games Launcher", badge: "官方正版", desc: "Epic Games 官方客户端，每周免费送游戏...", rating: "4.3", reviews: "89万+", size: "150 MB", downloads: "2000万+", iconColor: "bg-stone-800", iconText: "Epic", tags: ["游戏平台", "免费游戏"] },
+            { id: 302, name: "Steam 令牌 (网易UU加速版)", badge: "工具", desc: "专为Steam用户打造，支持手机令牌管理...", rating: "4.6", reviews: "56万+", size: "45 MB", downloads: "500万+", iconColor: "bg-slate-900", iconText: "UU", tags: ["Steam工具", "加速"] },
+            { id: 102, name: "泡泡加速器联想版", badge: "", desc: "steam免费加速器，支持Steam社区/商店加速访问...", rating: "4.1", reviews: "2122人打分", size: "62.42 MB", downloads: "18万次安装", iconColor: "bg-cyan-500", iconText: "泡泡", tags: ["Steam", "试用"] }
+        ];
+
+        const SYNONYM_MATCH_DATA = [
+            { id: 401, name: "谷歌浏览器 (Google Chrome)", badge: "官方正版", desc: "Google打造的极速浏览器，内核性能强劲...", rating: "4.9", reviews: "200万+", size: "98 MB", downloads: "50亿+", iconColor: "bg-blue-600", iconText: "Chrome", tags: ["极速", "浏览器"] },
+            { id: 402, name: "Microsoft Edge", badge: "系统预装", desc: "微软推出的新一代浏览器，兼容Chrome插件...", rating: "4.7", reviews: "50万+", size: "120 MB", downloads: "10亿+", iconColor: "bg-sky-500", iconText: "Edge", tags: ["微软", "浏览器"] },
+            { id: 403, name: "360极速浏览器", badge: "", desc: "基于Chromium内核，双核智能切换...", rating: "4.5", reviews: "80万+", size: "85 MB", downloads: "8亿+", iconColor: "bg-green-500", iconText: "360", tags: ["双核", "安全"] }
+        ];
+
+        const EDITING_APPS_DATA = [
+            { id: 501, name: "剪映专业版", badge: "热门", desc: "抖音官方推出，全能好用的视频剪辑软件...", rating: "4.9", reviews: "500万+", size: "400 MB", downloads: "10亿+", iconColor: "bg-black", iconText: "CapCut", tags: ["快速上手", "免费版", "AI功能"] },
+            { id: 502, name: "Adobe Premiere Pro", badge: "专业", desc: "行业标准的视频编辑软件，提供精细的色彩分级...", rating: "4.8", reviews: "20万+", size: "2 GB", downloads: "500万+", iconColor: "bg-purple-900", iconText: "Pr", tags: ["专业级", "付费"] },
+            { id: 503, name: "必剪", badge: "B站出品", desc: "B站官方剪辑工具，一键投稿...", rating: "4.6", reviews: "100万+", size: "300 MB", downloads: "2亿+", iconColor: "bg-pink-500", iconText: "必剪", tags: ["快速上手", "免费版"] },
+            { id: 504, name: "DaVinci Resolve", badge: "调色大师", desc: "好莱坞首选的调色和剪辑软件，功能强大...", rating: "4.7", reviews: "5万+", size: "3 GB", downloads: "100万+", iconColor: "bg-indigo-600", iconText: "DaVinci", tags: ["专业级", "免费版"] } 
+        ];
+
+        const CORRECTION_MATCH_DATA = [
+            { id: 601, name: "WeGame", badge: "腾讯官方", desc: "腾讯游戏平台，提供游戏资讯、购买...", rating: "4.4", reviews: "300万+", size: "180 MB", downloads: "10亿+", iconColor: "bg-yellow-500", iconText: "We", tags: ["游戏平台", "腾讯"] },
+            { id: 602, name: "掌上WeGame", badge: "移动端", desc: "WeGame手机版，随时随地查看战绩...", rating: "4.2", reviews: "50万+", size: "80 MB", downloads: "2亿+", iconColor: "bg-yellow-400", iconText: "App", tags: ["助手", "社区"] }
+        ];
+
+        const FOLLOWUP_MIXED_DATA = [
+            { id: 701, name: "爱奇艺", badge: "热播", desc: "张凌赫主演《宁安如梦》独家热播中...", rating: "4.8", reviews: "500万+", size: "120 MB", downloads: "30亿+", iconColor: "bg-green-600", iconText: "iQIYI", tags: ["影视", "追剧"] },
+            { id: 702, name: "堆糖", badge: "美图", desc: "海量高清壁纸头像，张凌赫生图、路透图实时更新...", rating: "4.6", reviews: "20万+", size: "60 MB", downloads: "5000万+", iconColor: "bg-pink-400", iconText: "堆糖", tags: ["壁纸", "社区"] },
+            { id: 703, name: "微博", badge: "官方", desc: "随时随地发现新鲜事，关注张凌赫超话...", rating: "4.5", reviews: "800万+", size: "150 MB", downloads: "20亿+", iconColor: "bg-orange-500", iconText: "Weibo", tags: ["社交", "资讯"] }
+        ];
+
+        const FOLLOWUP_WALLPAPER_DATA = [
+            { id: 702, name: "堆糖", badge: "美图", desc: "海量高清壁纸头像，张凌赫生图...", rating: "4.6", reviews: "20万+", size: "60 MB", downloads: "5000万+", iconColor: "bg-pink-400", iconText: "堆糖", tags: ["壁纸", "社区"] },
+            { id: 704, name: "小红书", badge: "种草", desc: "年轻人的生活方式平台，发现更多...", rating: "4.7", reviews: "300万+", size: "130 MB", downloads: "10亿+", iconColor: "bg-red-500", iconText: "Red", tags: ["社区", "美图"] },
+            { id: 705, name: "元气桌面", badge: "动态", desc: "超清动态壁纸，一键设置明星桌面...", rating: "4.4", reviews: "10万+", size: "200 MB", downloads: "8000万+", iconColor: "bg-indigo-500", iconText: "元气", tags: ["壁纸", "桌面"] }
+        ];
+
+        const DYNAMIC_FILTERS_CONFIG = {
+            'idle': [],
+            'exact': ["官方正版", "最新版本", "五星好评"],
+            'semantic': ["免费时长", "低延迟", "Steam专用", "丢包补偿", "千兆专线"],
+            'substitute': ["官方客户端", "游戏工具", "社区加速", "令牌管理"],
+            'synonym': ["极速内核", "插件丰富", "无广告", "账号同步", "开发者工具"],
+            'editing': ["免费版", "专业级", "快速上手", "AI功能"],
+            'correction': ["游戏平台", "辅助工具", "腾讯游戏", "正版购买"],
+            'followup': ["影视作品", "高清壁纸", "粉丝社区", "最新资讯"],
+            'followup_refined': ["高清壁纸", "动态桌面", "明星写真", "无水印"]
+        };
+
+        // --- 组件 ---
+
+        const SidebarItem = ({ icon: Icon, label, active = false, badge = 0 }) => (
+            <div className={`flex items-center gap-3 px-6 py-3.5 cursor-pointer transition-all duration-200 group ${active ? 'bg-gradient-to-r from-green-50 to-transparent text-green-600 font-medium border-r-4 border-green-500' : 'text-gray-600 hover:bg-gray-50'}`}>
+                <Icon size={20} strokeWidth={active ? 2.5 : 2} className={`transition-transform group-hover:scale-110 ${active ? 'text-green-600' : 'text-gray-500'}`} />
+                <span className="flex-1 text-sm tracking-wide">{label}</span>
+                {badge > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">{badge}</span>}
+            </div>
+        );
+
+        const AppCard = ({ app, index }) => (
+            <div className="flex items-center p-4 bg-white rounded-xl mb-3 hover:shadow-lg transition-all duration-300 border border-transparent hover:border-blue-100 group cursor-default animate-in fade-in slide-in-from-bottom-4 fill-mode-backwards" style={{ animationDelay: `${index * 50}ms` }}>
+                <div className={`w-16 h-16 rounded-2xl ${app.iconColor} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 group-hover:scale-105 transition-transform duration-300`}>
+                {app.iconText}
+                </div>
+                <div className="ml-5 flex-1 min-w-0 py-1">
+                <div className="flex items-center gap-2 mb-1.5">
+                    <h3 className="text-base font-bold text-gray-900 truncate">{app.name}</h3>
+                    {app.badge && <span className="px-1.5 py-0.5 bg-orange-50 text-orange-600 text-[10px] font-medium rounded border border-orange-100 flex items-center">{app.badge}</span>}
+                </div>
+                <p className="text-gray-500 text-xs truncate max-w-[95%] mb-2.5 leading-relaxed">{app.desc}</p>
+                <div className="flex items-center text-xs text-gray-400 gap-4">
+                    <div className="flex items-center gap-1 text-gray-900 font-bold bg-gray-50 px-1.5 py-0.5 rounded"><Star size={10} className="text-yellow-400 fill-yellow-400" />{app.rating}</div>
+                    <span className="hidden sm:inline">{app.size}</span><span>{app.downloads}</span>
+                    {app.tags && app.tags.map(tag => <span key={tag} className="hidden sm:inline bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded text-[10px]">{tag}</span>)}
+                </div>
+                </div>
+                <button className="bg-gray-900 hover:bg-black text-white text-sm font-medium px-6 py-2 rounded-full transition-all hover:shadow-lg active:scale-95 shrink-0 ml-4">安装</button>
+            </div>
+        );
+
+        const AIInsightCard = ({ query, type = 'default', onRevert }) => {
+            let styles = {};
+            let content = null;
+            let actions = null;
+
+            switch (type) {
+                case 'substitute':
+                styles = { border: "from-amber-300 via-orange-300 to-gray-200", iconBg: "bg-gradient-to-br from-amber-500 to-orange-600", titleGradient: "from-amber-600 to-orange-600", title: "Lenovo AI 智能推荐", Icon: Lightbulb };
+                content = (<><p className="animate-in fade-in duration-700">为您检索到 <span className="font-bold text-gray-900">‘{query}’</span> 相关结果。</p><div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-100 text-gray-800 text-xs leading-5 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150"><div className="flex gap-2"><Info size={14} className="text-amber-600 shrink-0 mt-0.5" /><span>由于商店暂未收录 Steam 客户端，我们为您推荐了 <span className="font-bold text-black border-b border-amber-300">Epic Games</span>（同类游戏平台），助您流畅体验游戏。</span></div></div></>);
+                actions = (<><button className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg font-medium transition-colors"><Download size={12} /> 一键安装 Epic</button><button className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs rounded-lg font-medium transition-colors"><Zap size={12} fill="currentColor" /> 查看热门游戏榜单</button></>);
+                break;
+
+                case 'synonym':
+                styles = { border: "from-teal-300 via-emerald-300 to-cyan-200", iconBg: "bg-gradient-to-br from-teal-500 to-emerald-600", titleGradient: "from-teal-600 to-emerald-600", title: "Lenovo AI 语义关联", Icon: ArrowLeftRight };
+                content = (<><div className="flex items-center gap-2 mb-2 animate-in fade-in duration-700"><span className="text-gray-600">检索关键词:</span><span className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs font-mono">{query}</span><ArrowRight size={12} className="text-gray-400" /><span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded text-xs font-bold border border-teal-100">谷歌浏览器</span></div><div className="p-3 bg-teal-50/50 rounded-lg border border-teal-100 text-gray-800 text-xs leading-5 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150"><div className="flex gap-2"><CheckCircle2 size={14} className="text-teal-600 shrink-0 mt-0.5" /><span>为您检索到 <span className="font-bold">‘{query}’</span> 相关结果。在 PC 端上对应的官方应用为 <span className="font-bold text-teal-700">谷歌浏览器 (Google Chrome)</span>，已为您自动置顶。</span></div></div></>);
+                actions = (<><button className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs rounded-lg font-medium transition-colors"><Download size={12} /> 极速下载</button><button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs rounded-lg font-medium transition-colors"><Layers size={12} /> 查看相关插件</button></>);
+                break;
+                
+                case 'generative':
+                styles = { border: "from-indigo-300 via-violet-300 to-fuchsia-200", iconBg: "bg-gradient-to-br from-indigo-500 to-violet-600", titleGradient: "from-indigo-600 to-violet-600", title: "Lenovo AI 需求聚类", Icon: SlidersHorizontal };
+                content = (<><p className="animate-in fade-in duration-700">已为您检索到 20+ 款 <span className="font-bold text-gray-900">‘{query}’</span>。</p><p className="mt-2 text-gray-600 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">AI 已自动分析应用特征，并为您提取了 <span className="bg-indigo-50 text-indigo-700 px-1 rounded font-medium">难度</span>、<span className="bg-indigo-50 text-indigo-700 px-1 rounded font-medium">价格</span> 等维度的筛选标签。请点击下方胶囊进行快速筛选。</p></>);
+                actions = null;
+                break;
+
+                case 'correction':
+                styles = { border: "from-orange-300 via-red-300 to-pink-200", iconBg: "bg-gradient-to-br from-orange-500 to-red-600", titleGradient: "from-orange-600 to-red-600", title: "Lenovo AI 智能纠错", Icon: AlertCircle };
+                content = (<div className="flex flex-col gap-2"><div className="flex items-center gap-2 mb-1 animate-in fade-in duration-700"><span className="text-gray-500 line-through text-xs">{query}</span><Replace size={12} className="text-gray-400" /><span className="bg-orange-50 text-orange-700 px-2 py-0.5 rounded text-xs font-bold border border-orange-100">WeGame</span></div><div className="p-3 bg-orange-50/50 rounded-lg border border-orange-100 text-gray-800 text-xs leading-5 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150"><div className="flex gap-2 items-start"><Info size={14} className="text-orange-600 shrink-0 mt-0.5" /><div className="flex flex-col gap-1"><span>未找到 “{query}” 相关应用。AI 分析您可能想找 <span className="font-bold text-orange-700">WeGame</span>，已为您自动展示相关结果。</span><div className="flex items-center gap-1 mt-1"><span className="text-gray-400">或者</span><button onClick={onRevert} className="text-orange-700 font-medium underline decoration-orange-300 hover:text-orange-800 hover:decoration-orange-600 transition-colors cursor-pointer">仍然搜索 "{query}"</button></div></div></div></div></div>);
+                actions = (<><button className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs rounded-lg font-medium transition-colors"><Download size={12} /> 下载 WeGame</button></>);
+                break;
+
+                default: 
+                if (type === 'followup' || type === 'followup_refined') return null;
+                styles = { border: "from-blue-300 via-purple-300 to-pink-300", iconBg: "bg-gradient-to-br from-blue-500 to-purple-600", titleGradient: "from-blue-600 to-purple-600", title: "Lenovo AI 助手分析", Icon: Sparkles };
+                content = (<><p className="animate-in fade-in duration-700">已为您理解意图：<span className="bg-blue-50 text-blue-700 px-1 rounded font-medium">"{query}"</span></p><p className="mt-2 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-150">针对您的需求，重点推荐 <span className="font-bold text-gray-900 border-b-2 border-red-100">AK加速器</span> 和 <span className="font-bold text-gray-900 border-b-2 border-cyan-100">泡泡加速器</span>。</p></>);
+                actions = (<><button className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs rounded-lg font-medium transition-colors"><Zap size={12} fill="currentColor" /> 一键开启免费模式</button><button className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 text-xs rounded-lg font-medium transition-colors"><MonitorUp size={12} /> 查看 Steam 加速教程</button></>);
+            }
+
+            return (
+                <div className="mb-6 group relative">
+                <div className={`absolute -inset-0.5 bg-gradient-to-r ${styles.border} rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200 animate-pulse`}></div>
+                <div className={`relative rounded-2xl p-[1px] bg-gradient-to-r ${styles.border}`}>
+                    <div className="bg-white/95 backdrop-blur-xl rounded-[15px] p-5 relative overflow-hidden shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2"><div className={`w-7 h-7 rounded-lg ${styles.iconBg} flex items-center justify-center shadow-inner`}><styles.Icon size={14} className="text-white" /></div><span className={`font-bold text-transparent bg-clip-text bg-gradient-to-r ${styles.titleGradient} text-sm`}>{styles.title}</span></div>
+                        <div className="text-[10px] text-gray-400 px-2 py-0.5 border rounded bg-gray-50">Based on LLM-v4</div>
+                    </div>
+                    <div className="text-gray-700 text-sm leading-7 mb-4 pl-1">{content}</div>
+                    {actions && <div className="flex flex-wrap gap-2 animate-in fade-in duration-1000 delay-500">{actions}</div>}
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        const DynamicFilterBar = ({ filters, activeFilter, onFilterClick }) => {
+            if (!filters || filters.length === 0) return null;
+            return (
+                <div className="flex items-center gap-2 mb-4 animate-in fade-in slide-in-from-left-4 duration-500">
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-50 text-blue-500 shrink-0"><Sparkles size={12} /></div>
+                <span className="text-xs text-gray-400 mr-1 font-medium">AI 智能筛选:</span>
+                <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {filters.map((filter, index) => (
+                    <button key={filter} onClick={() => onFilterClick(filter)} className={`px-3 py-1 text-xs rounded-full font-medium whitespace-nowrap transition-all duration-300 border ${activeFilter === filter ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 scale-105' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600'}`} style={{ animationDelay: `${index * 100}ms` }}>{filter}</button>
+                    ))}
+                </div>
+                </div>
+            );
+        };
+
+        // --- 主程序 ---
+
+        function LenovoStoreApp() {
+            const [query, setQuery] = useState("");
+            const [searchState, setSearchState] = useState("idle"); 
+            const [loading, setLoading] = useState(false);
+            const [activeDynamicFilter, setActiveDynamicFilter] = useState(null);
+
+            const handleSimulateExact = () => { setQuery("微信"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("exact"); setLoading(false); }, 400); };
+            const handleSimulateSemantic = () => { setQuery("永久免费加速器"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("semantic"); setLoading(false); }, 1500); };
+            const handleSimulateSubstitute = () => { setQuery("Steam"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("substitute"); setLoading(false); }, 1200); };
+            const handleSimulateSynonym = () => { setQuery("chrome"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("synonym"); setLoading(false); }, 1000); };
+            const handleSimulateEditing = () => { setQuery("剪辑软件"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("editing"); setLoading(false); }, 1500); };
+            const handleSimulateCorrection = () => { setQuery("wgame"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("correction"); setLoading(false); }, 1000); };
+            const handleSimulateFollowUp = () => { setQuery("张凌赫"); resetSearch(); setLoading(true); setTimeout(() => { setSearchState("followup"); setLoading(false); }, 1000); };
+            const handleRefineSearch = (topic) => { setQuery(`张凌赫 ${topic}`); setLoading(true); setTimeout(() => { setSearchState("followup_refined"); setLoading(false); }, 800); };
+            const handleRevertCorrection = () => { setLoading(true); setTimeout(() => { setSearchState("correction_reverted"); setLoading(false); }, 500); };
+            const handleClear = () => { setQuery(""); resetSearch(); };
+            const resetSearch = () => { setSearchState("idle"); setActiveDynamicFilter(null); };
+
+            const isAIActive = ['semantic', 'substitute', 'synonym', 'editing', 'correction', 'followup', 'followup_refined'].includes(searchState);
+
+            const getDisplayData = () => {
+                let data = [];
+                if (searchState === 'exact') data = EXACT_MATCH_DATA;
+                else if (searchState === 'semantic') data = SEMANTIC_MATCH_DATA;
+                else if (searchState === 'substitute') data = SUBSTITUTE_MATCH_DATA;
+                else if (searchState === 'synonym') data = SYNONYM_MATCH_DATA;
+                else if (searchState === 'editing') data = EDITING_APPS_DATA;
+                else if (searchState === 'correction') data = CORRECTION_MATCH_DATA;
+                else if (searchState === 'followup') data = FOLLOWUP_MIXED_DATA;
+                else if (searchState === 'followup_refined') data = FOLLOWUP_WALLPAPER_DATA;
+                else if (searchState === 'correction_reverted') data = []; 
+                if (activeDynamicFilter && data.length > 0) { return data.filter(app => app.tags.includes(activeDynamicFilter)); }
+                return data;
+            };
+
+            const displayData = getDisplayData();
+
+            return (
+                <div className="flex h-screen w-full bg-[#f8f9fa] font-sans text-slate-800 overflow-hidden select-none">
+                <div className="w-[240px] bg-white h-full flex flex-col shrink-0 border-r border-gray-100 z-20">
+                    <div className="p-6 pb-4">
+                    <div className="flex items-center gap-2.5 font-bold text-xl text-gray-900 tracking-tight">
+                        <div className="w-9 h-9 bg-gradient-to-tr from-green-600 to-green-400 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-200"><span className="font-serif italic text-lg">L</span></div>
+                        联想应用商店
+                    </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto py-2 space-y-1 custom-scrollbar">
+                    <SidebarItem icon={LayoutGrid} label="推荐" active={searchState === 'idle'} />
+                    <SidebarItem icon={Zap} label="雷神加速器" />
+                    <SidebarItem icon={Gamepad2} label="游戏" />
+                    <SidebarItem icon={MessageSquare} label="微信小游戏" />
+                    <SidebarItem icon={Layers} label="分类" />
+                    <SidebarItem icon={ImageIcon} label="壁纸" />
+                    <SidebarItem icon={Sparkles} label="AI 专区" />
+                    <SidebarItem icon={Briefcase} label="办公" />
+                    <SidebarItem icon={MonitorUp} label="升级" badge={8} />
+                    <SidebarItem icon={User} label="我的" />
+                    </div>
+                </div>
+
+                <div className="flex-1 flex flex-col min-w-0 bg-[#f8f9fa]">
+                    <div className="px-8 pt-6 pb-2 shrink-0 relative z-30">
+                    <div className="flex items-center justify-between mb-5">
+                        <div className="relative flex-1 max-w-2xl group">
+                        <div className={`relative z-40 flex items-center bg-white px-5 py-3 transition-all duration-300 border border-gray-100 ${searchState === 'followup' ? 'rounded-t-2xl shadow-none border-b-0' : 'rounded-full shadow-sm hover:shadow-md'} ${isAIActive && searchState !== 'followup' ? 'shadow-xl shadow-blue-50/50 ring-2 ring-blue-50 border-blue-100' : ''}`}>
+                            <Search size={18} className={`mr-3 transition-colors ${isAIActive ? 'text-blue-500' : 'text-gray-400'}`} />
+                            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索应用、游戏、壁纸..." className="flex-1 bg-transparent outline-none text-sm text-gray-700 placeholder-gray-400" />
+                            {query && <button onClick={handleClear} className="mr-3 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-1 transition-colors"><X size={14} /></button>}
+                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all duration-500 ${isAIActive ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md' : 'bg-gray-100 text-gray-400'}`}><Sparkles size={11} className={isAIActive ? 'animate-spin-slow' : ''} /><span>AI Search</span></div>
+                        </div>
+
+                        {searchState === 'followup' && (
+                            <div className="absolute top-full left-0 w-full bg-white rounded-b-2xl border-x border-b border-gray-100 shadow-xl z-30 animate-in slide-in-from-top-2 duration-300 overflow-hidden">
+                            <div className="p-4 bg-gradient-to-b from-white to-blue-50/30">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 mt-1 shadow-sm"><MessageCircleQuestion size={16} className="text-white" /></div>
+                                    <div className="flex-1">
+                                        <p className="text-sm text-gray-800 font-medium mb-3">您希望获取哪方面的<span className="text-blue-600 mx-1">{query}</span>相关内容？</p>
+                                        <div className="flex flex-wrap gap-2">
+                                        <button onClick={() => handleRefineSearch("壁纸美图")} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-100 rounded-lg text-xs text-blue-700 font-medium hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm"><ImageIcon size={12} /> 壁纸美图</button>
+                                        <button onClick={() => handleRefineSearch("影视作品")} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-100 rounded-lg text-xs text-blue-700 font-medium hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm"><MonitorUp size={12} /> 影视作品</button>
+                                        <button onClick={() => handleRefineSearch("粉丝社区")} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-100 rounded-lg text-xs text-blue-700 font-medium hover:bg-blue-50 hover:border-blue-300 transition-colors shadow-sm"><User size={12} /> 粉丝社区</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                        )}
+                        
+                        {searchState === 'idle' && !loading && (
+                            <div className="absolute top-full left-0 mt-4 w-[130%] bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-gray-100 shadow-2xl z-50 animate-in fade-in slide-in-from-top-3 duration-300">
+                            <div className="flex items-center justify-between mb-3"><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">演示控制台</p></div>
+                            <div className="grid grid-cols-7 gap-2">
+                                <button onClick={handleSimulateExact} className="text-left p-2 bg-gray-50 hover:bg-green-50 rounded-xl border border-gray-200 hover:border-green-200 transition-all group/btn"><div className="text-[9px] font-medium text-gray-500 mb-0.5">场景 A</div><div className="text-[10px] font-bold text-gray-900">精准</div></button>
+                                <button onClick={handleSimulateSemantic} className="text-left p-2 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-100 hover:border-blue-200 transition-all group/btn"><div className="text-[9px] font-medium text-blue-500 mb-0.5">场景 B</div><div className="text-[10px] font-bold text-blue-800">语义</div></button>
+                                <button onClick={handleSimulateSubstitute} className="text-left p-2 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-100 hover:border-amber-200 transition-all group/btn"><div className="text-[9px] font-medium text-amber-600 mb-0.5">场景 C</div><div className="text-[10px] font-bold text-amber-800">替代</div></button>
+                                <button onClick={handleSimulateSynonym} className="text-left p-2 bg-teal-50 hover:bg-teal-100 rounded-xl border border-teal-100 hover:border-teal-200 transition-all group/btn"><div className="text-[9px] font-medium text-teal-600 mb-0.5">场景 D</div><div className="text-[10px] font-bold text-teal-800">同义</div></button>
+                                <button onClick={handleSimulateEditing} className="text-left p-2 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-100 hover:border-indigo-200 transition-all group/btn relative overflow-hidden"><div className="text-[9px] font-medium text-indigo-600 mb-0.5">场景 E</div><div className="text-[10px] font-bold text-indigo-800">筛选</div></button>
+                                <button onClick={handleSimulateCorrection} className="text-left p-2 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 hover:border-red-200 transition-all group/btn relative overflow-hidden"><div className="text-[9px] font-medium text-red-600 mb-0.5">场景 F</div><div className="text-[10px] font-bold text-red-800">纠错</div></button>
+                                <button onClick={handleSimulateFollowUp} className="text-left p-2 bg-purple-50 hover:bg-purple-100 rounded-xl border border-purple-100 hover:border-purple-200 transition-all group/btn relative overflow-hidden"><div className="text-[9px] font-medium text-purple-600 mb-0.5">场景 G</div><div className="text-[10px] font-bold text-purple-800">追问</div></button>
+                            </div>
+                            </div>
+                        )}
+                        </div>
+                        <div className="flex items-center gap-5 ml-8 text-gray-400">
+                        <div className="flex items-center gap-2 cursor-pointer hover:text-gray-800"><div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden"><img src="https://api.dicebear.com/7.x/notionists/svg?seed=Felix" className="w-full h-full" /></div><span className="text-sm font-medium">182****6...</span></div>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between pl-1">
+                        <div className="flex gap-3"><button className="px-5 py-1.5 bg-gray-900 text-white text-xs font-bold rounded-full shadow-md">应用 {searchState === 'idle' ? '' : searchState === 'exact' ? '2' : '31'}</button><button className="px-5 py-1.5 bg-white text-gray-500 text-xs font-medium rounded-full border border-gray-100">壁纸</button></div>
+                    </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-8 py-2 relative custom-scrollbar">
+                    {loading && (
+                        <div className="absolute inset-0 flex flex-col items-center pt-20 bg-[#f8f9fa]/80 backdrop-blur-sm z-10 animate-in fade-in duration-300">
+                        <div className="relative w-12 h-12 mb-4"><div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-75"></div><div className="relative w-12 h-12 bg-gradient-to-tr from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white shadow-lg"><Sparkles size={20} className="animate-spin-slow" /></div></div>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 font-bold text-sm">AI 正在{query.includes('张凌赫') ? '分析意图并生成追问' : query === 'Steam' ? '分析替代方案' : query === 'chrome' ? '识别应用同义词' : query === 'wgame' ? '检测拼写错误' : query === '剪辑软件' ? '提取聚类特征' : '深度分析语义'}...</span>
+                        </div>
+                    )}
+
+                    {searchState === 'idle' && (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-300 pb-20"><div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6"><Search size={40} className="text-gray-300" /></div><p className="text-sm font-medium text-gray-400">输入关键词或点击上方演示按钮体验搜索</p></div>
+                    )}
+
+                    {searchState !== 'idle' && !loading && (
+                        <DynamicFilterBar filters={DYNAMIC_FILTERS_CONFIG[searchState]} activeFilter={activeDynamicFilter} onFilterClick={(filter) => setActiveDynamicFilter(filter === activeDynamicFilter ? null : filter)} />
+                    )}
+
+                    {!loading && searchState !== 'idle' && (
+                        <div className="max-w-4xl pb-10">
+                        {searchState !== 'exact' && searchState !== 'correction_reverted' && searchState !== 'followup' && searchState !== 'followup_refined' && (
+                            <AIInsightCard query={query} type={searchState === 'editing' ? 'generative' : searchState} onRevert={handleRevertCorrection} />
+                        )}
+
+                        {searchState === 'correction_reverted' && (
+                            <div className="flex flex-col items-center justify-center py-20 text-gray-400"><div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4"><SearchX size={32} /></div><p className="text-sm font-medium">未找到 "{query}" 相关应用</p><p className="text-xs mt-2">请尝试搜索 WeGame</p></div>
+                        )}
+                        
+                        {searchState !== 'correction_reverted' && (
+                            searchState === 'exact' ? (
+                                <div className="text-xs text-gray-400 mb-3 pl-1">找到 {displayData.length} 个精准匹配结果</div>
+                            ) : (
+                                <div className="flex items-center justify-between mb-3 pl-1 mt-8">
+                                <div className="text-xs text-gray-500">{activeDynamicFilter ? `筛选结果: ${activeDynamicFilter}` : searchState === 'followup' ? '为您找到相关综合结果' : searchState === 'followup_refined' ? '已根据您的选择优化结果' : '为您推荐'}</div>
+                                {activeDynamicFilter && <div onClick={() => setActiveDynamicFilter(null)} className="text-[10px] text-blue-500 cursor-pointer hover:underline flex items-center gap-1">清除筛选 <X size={10}/></div>}
+                                </div>
+                            )
+                        )}
+
+                        {searchState !== 'correction_reverted' && (
+                            displayData.length > 0 ? (
+                                displayData.map((app, idx) => <AppCard key={app.id} app={app} index={idx} />)
+                            ) : (
+                                <div className="p-8 text-center text-gray-400 text-sm bg-white rounded-xl border border-dashed border-gray-200">没有找到符合 "{activeDynamicFilter}" 的应用</div>
+                            )
+                        )}
+                        </div>
+                    )}
+                    </div>
+                </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<LenovoStoreApp />);
+    </script>
+</body>
+</html>
